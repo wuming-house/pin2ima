@@ -43,7 +43,7 @@ echo "你的APIKey" > ~/.config/ima/api_key
 
 ```bash
 # 克隆项目
-git clone https://github.com/你的用户名/pin2ima.git
+git clone https://github.com/wuming-house/pin2ima.git
 
 # 如果你用的是 WorkBuddy / Claude Code 等 AI Agent
 cp -r pin2ima/skill ~/.workbuddy/skills/pin2ima

@@ -150,7 +150,26 @@ Success response shape:
 - `code=0` → extract `kb_id` from `data.info_list[0].kb_id`
 - `info_list` empty → knowledge base not found
 
-**If no match:** inform the user and optionally list available knowledge bases (search with `query:""`).
+**If no match — 引导用户创建知识库：**
+
+当 `info_list` 为空时，知识库不存在。**不要猜测、不要自行搜索、不要默认存到其他库**。直接给出以下指引：
+
+```
+❌ 未找到「选题知识库」
+
+请先在 IMA 中手动创建，操作步骤：
+
+1. 打开 IMA 客户端（电脑版或微信小程序均可）
+2. 进入「知识库」页面
+3. 点击「新建知识库」
+4. 输入名称：「选题知识库」
+5. 点击「确定」创建
+
+创建完成后，再发一次链接给我即可保存。
+```
+
+**说明：** IMA OpenAPI 没有提供创建知识库的接口，必须由用户在 IMA 客户端中手动创建。
+一旦创建完成，Agent 即可通过名称搜索到并正常使用。
 
 ### Step 3 — Import the URL
 

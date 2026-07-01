@@ -383,6 +383,30 @@ add_knowledge_note() {
 
 **笔记内容格式：** `content_format` 固定为 `1`（Markdown），内容建议包含来源链接、摘要、备注，方便以后回顾时直接查看。
 
+**⛔ 编码注意事项（笔记写入前必读）：**
+
+笔记 API 的 `content` 和 `title` 字段**必须是合法 UTF-8**，否则会在 IMA 中显示为不可逆的乱码（如 `h͎̀͌` 或 ``）。
+
+**问题来源：** 从网页抓取的标题、简介可能为 GBK / Latin-1 等编码，直接写入笔记就会乱码。
+
+**解决方案：写入笔记前，用 Python 清洗所有字符串字段：**
+
+```python
+# 清洗非法 UTF-8 字节
+content = raw_content.encode('utf-8', 'ignore').decode('utf-8')
+title = raw_title.encode('utf-8', 'ignore').decode('utf-8')
+```
+
+或在 bash 中处理：
+
+```bash
+# 用 python3 清洗变量中的非法 UTF-8
+CLEAN_CONTENT=$(printf '%s' "$RAW_CONTENT" | python3 -c "import sys; sys.stdout.write(sys.stdin.buffer.read().decode('utf-8','ignore'))")
+CLEAN_TITLE=$(printf '%s' "$RAW_TITLE" | python3 -c "import sys; sys.stdout.write(sys.stdin.buffer.read().decode('utf-8','ignore'))")
+```
+
+**强制执行：** 在调用 `import_doc` 之前，**必须**对 `content` 和 `title` 执行上述清洗。无论内容来源是 WebFetch、API 返回还是变量拼接，都不能假设已经是合法 UTF-8。
+
 ### 通用保存步骤（所有层级共用）
 
 无论哪个层级获得摘要后，统一执行：
@@ -391,19 +415,23 @@ add_knowledge_note() {
 # Step A: 获取知识库 ID（同文章工作流 Step 2）
 # ... search_knowledge_base ...
 
-# Step B: 创建笔记
+# Step B: 创建笔记（写入前清洗 UTF-8）
+# 先清洗 content 和 title 中的非法 UTF-8 字节
+CLEAN_CONTENT=$(printf '%s' "## $VIDEO_TITLE\n\n**来源：** $VIDEO_URL\n**平台：** $PLATFORM\n**发布时间：** $PUB_DATE\n\n### AI 摘要\n$SUMMARY\n\n---\n*由 pin2ima 于 $(date +%Y-%m-%d) 自动收录*" | python3 -c "import sys; sys.stdout.write(sys.stdin.buffer.read().decode('utf-8','ignore'))")
+CLEAN_TITLE=$(printf '%s' "$VIDEO_TITLE - 选题笔记" | python3 -c "import sys; sys.stdout.write(sys.stdin.buffer.read().decode('utf-8','ignore'))")
+
 NOTE_RESP=$(import_doc "{
   \"content_format\": 1,
-  \"content\": \"## $VIDEO_TITLE\\n\\n**来源：** $VIDEO_URL\\n**平台：** $PLATFORM\\n**发布时间：** $PUB_DATE\\n\\n### AI 摘要\\n$SUMMARY\\n\\n---\\n*由 pin2ima 于 $(date +%Y-%m-%d) 自动收录*\",
+  \"content\": \"$CLEAN_CONTENT\",
   \"folder_name\": \"选题笔记\"
 }")
 # 解析 NOTE_RESP 获取 note_id
 
-# Step C: 把笔记挂到知识库
+# Step C: 把笔记挂到知识库（title 同样需要清洗）
 ADD_RESP=$(add_knowledge_note "{
   \"media_type\": 11,
   \"note_info\": {\"content_id\": \"$NOTE_ID\"},
-  \"title\": \"$VIDEO_TITLE - 选题笔记\",
+  \"title\": \"$CLEAN_TITLE\",
   \"knowledge_base_id\": \"$KB_ID\"
 }")
 

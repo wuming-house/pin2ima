@@ -76,6 +76,8 @@ Before proceeding, determine whether the URL points to an **article** (web page)
 | Platform | Detection | Type |
 |----------|-----------|------|
 | `mp.weixin.qq.com` | Always article | article |
+| `xiaohongshu.com/explore/` / `xhslink.com/` | 小红书笔记 | article-note |
+| `zhuanlan.zhihu.com` / `zhihu.com` | 知乎文章 | article |
 | General web page (no video platform host) | Assume article | article |
 | `youtube.com/watch` / `youtu.be/` | YouTube video | video |
 | `bilibili.com/video/` / `b23.tv/` | B站视频 | video |
@@ -85,6 +87,7 @@ Before proceeding, determine whether the URL points to an **article** (web page)
 | URL ends with `.mp4` / `.mov` / `.webm` etc. | Direct video file | video |
 
 - **article** → follow the standard Core Workflow below
+- **article-note** → follow the [Article-Note Workflow](#-文章笔记工作流支持自定义标题的平台) (like video, but with page title)
 - **video** → jump to the [Video Workflow](#-进阶功能自媒体选题场景) section
 
 ### Step 1 — Build Auth Header
@@ -201,6 +204,73 @@ Parse `RESPONSE`:
 - During import: "正在保存文章到知识库…"
 - On success: "✅ 已添加到知识库「{kb_name}」✓"
 - On failure: "❌ 保存失败：{reason}"
+
+---
+
+## 📝 文章笔记工作流（支持自定义标题的平台）
+
+部分平台（小红书、抖音等）的页面用 `import_urls` 保存后，标题会被识别为站点名称而非文章标题。对于这些平台，改用笔记方式保存，确保标题准确清晰。
+
+### 触发条件
+
+URL 类型检测为 `article-note` 时走此流程。
+
+### 处理流程
+
+1. **WebFetch 抓取页面**，提取真实标题、描述
+2. **AI 生成一句话摘要**
+3. **创建笔记**，标题使用真实标题，内容包含来源链接 + 摘要
+4. **将笔记挂到知识库**
+
+### 参考命令
+
+```bash
+# Step A: 获取真实标题
+# 用 WebFetch 或 curl 抓取页面，提取 title 标签内容
+
+# Step B: 构建笔记内容
+NOTE_CONTENT="## $REAL_TITLE
+
+**来源：** $URL
+**平台：** $PLATFORM
+
+### AI 摘要
+$SUMMARY
+
+---
+*由 pin2ima 于 $(date +%Y-%m-%d) 自动收录*"
+
+# 清洗 UTF-8（同视频流程）
+CLEAN_CONTENT=$(printf '%s' "$NOTE_CONTENT" | python3 -c "import sys; sys.stdout.write(sys.stdin.buffer.read().decode('utf-8','ignore'))")
+CLEAN_TITLE=$(printf '%s' "$REAL_TITLE" | python3 -c "import sys; sys.stdout.write(sys.stdin.buffer.read().decode('utf-8','ignore'))")
+
+# Step C: 创建笔记
+NOTE_RESP=$(import_doc "{
+  \"content_format\": 1,
+  \"content\": \"$CLEAN_CONTENT\",
+  \"folder_name\": \"选题笔记\"
+}")
+
+# Step D: 挂到知识库
+ADD_RESP=$(add_knowledge_note "{
+  \"media_type\": 11,
+  \"note_info\": {\"content_id\": \"$NOTE_ID\"},
+  \"title\": \"$CLEAN_TITLE\",
+  \"knowledge_base_id\": \"$KB_ID\"
+}")
+```
+
+### 输出示例（小红书）
+
+```
+📥 正在保存到「选题知识库」…
+
+📝 文章笔记
+标题：【2026必看】5个让你效率翻倍的AI工具
+来源：小红书
+
+✅ 已保存到知识库 → 搜索「【2026必看】5个让你效率翻倍的AI工具 - 选题笔记」即可查看
+```
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: pin2ima
-description: Pin any article/video link (WeChat, Zhihu, Toutiao, Bilibili, YouTube, GitHub, web pages, etc.) to your IMA knowledge base with one click. Designed for 自媒体选题素材收集 (self-media topic sourcing). Trigger when the user provides a URL and asks to "保存到知识库/收藏/存到IMA/pin to knowledge base". Also triggers when the user sends a shareable link with an intent to archive it for later reference or topic research.
+description: Pin any article/video link to IMA knowledge base. Trigger when the user says "pin2ima" or sends a URL with "pin/📌/Pin2IMA/专注收藏". Designed for 自媒体选题素材收集. NOT the ima-mcp connector — uses curl + IMA OpenAPI directly.
 agent_created: true
 ---
 
@@ -60,16 +60,13 @@ test -f ~/.config/ima/client_id && test -f ~/.config/ima/api_key && echo "✅ OK
 
 #### Trigger by user intent
 
-Triggered when the user provides a URL with any of these intents:
-- "保存到知识库"
-- "收藏到知识库"
-- "添加到知识库"
-- "收集到知识库"
-- "存到知识库"
-- "保存到 IMA"
-- "save to knowledge base"
+Triggered when the user says **"pin2ima"** or uses any of these intents:
+- "pin2ima 保存" / "pin2ima 收藏"
+- "pin 到知识库" / "📌 收藏" / "Pin2IMA 保存"
+- 直接发链接说 "专注收藏"
 
-Also triggered when the user pastes a URL and the context indicates they want it archived.
+**⚠️ ima-mcp 冲突说明：** 如果用户装了 ima-mcp connector，"保存到知识库"等短语会优先被 MCP 拦截。
+此时需用户说出 **"pin2ima"** 或 **"📌"** 关键词来明确触发本 Skill，或在对话中告知用户用 "pin2ima 收藏" 代替 "收藏到知识库"。
 
 #### URL type detection
 

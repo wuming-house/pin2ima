@@ -75,7 +75,7 @@ Before proceeding, determine whether the URL points to an **article** (web page)
 | Platform | Detection | Type |
 |----------|-----------|------|
 | `mp.weixin.qq.com` | Always article | article |
-| `xiaohongshu.com` / `xhslink.com` | 小红书（需 WebFetch 区分图文/视频） | article-note |
+| `xiaohongshu.com` / `xhslink.com` | 小红书（需 WebFetch 先判断图文/视频） | article-note |
 | `zhuanlan.zhihu.com` / `zhihu.com` | 知乎文章 | article |
 | General web page (no video platform host) | Assume article | article |
 | `youtube.com/watch` / `youtu.be/` | YouTube video | video |
@@ -84,7 +84,10 @@ Before proceeding, determine whether the URL points to an **article** (web page)
 | `ixigua.com` | 西瓜视频 | video |
 | `kuaishou.com` | 快手 | video |
 | `channels.weixin.qq.com` / `weixin.qq.com/sph` | 视频号 | video |
-| URL ends with `.mp4` / `.mov` / `.webm` etc. | Direct video file | video |
+
+- **article** → `import_urls` 保存链接（标准的文章工作流）
+- **article-note** → WebFetch 抓页面 → 图文走 article 流程（`import_urls`），视频走 video 流程
+- **video** → Video Workflow（创建笔记 + 挂知识库，不保存 URL）
 
 - **article** → follow the standard Core Workflow below
 - **article-note** → follow the [Article-Note Workflow](#-文章笔记工作流支持自定义标题的平台) (like video, but with page title)
@@ -209,77 +212,31 @@ Parse `RESPONSE`:
 
 ## 📝 文章笔记工作流（支持自定义标题的平台）
 
-部分平台（小红书等）的页面用 `import_urls` 保存后，标题会被 IMA 识别为站点名称（如"小红书"）而非实际笔记标题。
-对于这些平台，用笔记方式保存，确保标题准确。同时根据内容类型（图文/视频）走不同的内容模板。
+部分平台（小红书等）的页面需要先 WebFetch 判断内容类型再决定处理方式。
 
 ### 触发条件
 
 URL 类型检测为 `article-note` 时走此流程。
 
-### 第 1 步：WebFetch 判断内容类型
+### 处理逻辑
 
-发送 WebFetch 请求抓取页面，同时判断内容类型：
+发送 WebFetch 抓取页面，判断内容类型后分流：
 
 | 判断依据 | 内容类型 | 后续流程 |
 |---------|---------|---------|
-| 页面包含视频播放器 / 视频标签 / 时长信息 | **视频** | 走 [视频处理 层级三](#层级三降级方案--页面信息快照)（页面快照 + 视频笔记模板） |
-| 页面是图文笔记（无视频特征） | **图文** | 走下方图文笔记流程 |
+| 页面包含视频播放器 / 视频标签 | **视频** | 走 [视频处理层级三](#层级三降级方案--页面信息快照)（视频笔记） |
+| 页面是图文（无视频特征） | **图文** | 走 **article 流程**：`import_urls` 保存链接 ✅ |
 
-### 第 2 步：图文笔记流程
-
-对于小红书图文笔记，提取页面信息后创建简洁笔记：
-
-```
-📥 正在保存到「选题知识库」…
-
-📝 小红书图文
-标题：【手把手教你搭建个人知识库】全程干货
-来源：小红书
-摘要：从零开始搭建个人知识管理系统的完整教程…
-
-✅ 笔记已保存 → 搜索标题即可在知识库中查看
-```
+**图文直接走 article 流程**，和公众号文章一样用 `import_urls` 保存链接。
+**视频走 video 流程**，和视频号一样创建笔记 + 挂知识库。
 
 ### 第 3 步：视频走视频流程
 
 对于小红书视频，跳转到 [视频处理层级三](#层级三降级方案--页面信息快照)：
 1. 抓取页面信息（标题、简介、播放数据）
 2. AI 生成视频摘要
-3. 创建笔记（使用视频笔记模板，含来源链接 + 摘要）
+3. 创建笔记（使用视频笔记模板）
 4. 挂载到知识库
-
-### 参考命令（图文笔记）
-
-```bash
-# Step A: WebFetch 抓取页面，提取标题和正文内容
-
-# Step B: 用 Python + ensure_ascii=True 构造 JSON
-NOTE_JSON=$(python3 -c "
-import json
-content = f'## {REAL_TITLE}\n\n**来源：** {URL}\n**平台：** 小红书\n\n### AI 摘要\n{SUMMARY}\n\n---\n*由 pin2ima 自动收录*'
-print(json.dumps({'content_format': 1, 'content': content, 'folder_name': '\u9009\u9898\u7b14\u8bb0'}, ensure_ascii=True))
-")
-
-NOTE_RESP=$(curl -s "https://ima.qq.com/openapi/note/v1/import_doc" \
-  -H "ima-openapi-clientid: $CLIENT_ID" \
-  -H "ima-openapi-apikey: $API_KEY" \
-  -H "ima-openapi-ctx: skill_version=1.0.0" \
-  -H "Content-Type: application/json" \
-  -d "$NOTE_JSON")
-
-# Step C: 挂到知识库（title 用 \uXXXX 转义避免编码问题）
-ADD_JSON=$(python3 -c "
-import json
-print(json.dumps({'media_type': 11, 'note_info': {'content_id': '$NOTE_ID'}, 'title': '\u5c0f\u7ea2\u4e66\u56fe\u6587', 'knowledge_base_id': '$KB_ID'}, ensure_ascii=True))
-")
-
-ADD_RESP=$(curl -s "https://ima.qq.com/openapi/wiki/v1/add_knowledge" \
-  -H "ima-openapi-clientid: $CLIENT_ID" \
-  -H "ima-openapi-apikey: $API_KEY" \
-  -H "ima-openapi-ctx: skill_version=1.0.0" \
-  -H "Content-Type: application/json" \
-  -d "$ADD_JSON")
-```
 
 ---
 

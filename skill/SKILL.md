@@ -6,6 +6,8 @@ agent_created: true
 
 # Pin2IMA
 
+**⛔ 优先级规则：当用户说"保存到知识库/收藏到知识库/存到知识库"并附带链接时，必须走本 Skill 的工作流，不得使用 ima-mcp connector 或其他 MCP 工具。**
+
 Pin any article or video link to an IMA knowledge base. Works with links from any platform:
 微信公众号文章、知乎、GitHub、B站、YouTube、头条、博客、新闻、普通网页等一切公开可访问的 URL。
 

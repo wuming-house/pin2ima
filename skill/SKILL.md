@@ -226,39 +226,34 @@ URL 类型检测为 `article-note` 时走此流程。
 ### 参考命令
 
 ```bash
-# Step A: 获取真实标题
-# 用 WebFetch 或 curl 抓取页面，提取 title 标签内容
+# Step A: 获取真实标题（WebFetch 抓取页面 title 标签）
 
-# Step B: 构建笔记内容
-NOTE_CONTENT="## $REAL_TITLE
+# Step B: 用 Python + ensure_ascii=True 构造 JSON
+NOTE_JSON=$(python3 -c "
+import json
+content = f'## $REAL_TITLE\n\n**来源：** $URL\n**平台：** $PLATFORM\n\n### AI 摘要\n$SUMMARY\n\n---\n*由 pin2ima 自动收录*'
+print(json.dumps({'content_format': 1, 'content': content, 'folder_name': '\u9009\u9898\u7b14\u8bb0'}, ensure_ascii=True))
+")
 
-**来源：** $URL
-**平台：** $PLATFORM
+NOTE_RESP=$(curl -s "https://ima.qq.com/openapi/note/v1/import_doc" \
+  -H "ima-openapi-clientid: $CLIENT_ID" \
+  -H "ima-openapi-apikey: $API_KEY" \
+  -H "ima-openapi-ctx: skill_version=1.0.0" \
+  -H "Content-Type: application/json" \
+  -d "$NOTE_JSON")
 
-### AI 摘要
-$SUMMARY
+# Step C: 挂到知识库
+ADD_JSON=$(python3 -c "
+import json
+print(json.dumps({'media_type': 11, 'note_info': {'content_id': '$NOTE_ID'}, 'title': '\u5feb\u770b\u5b66\u957f - \u9009\u9898\u7b14\u8bb0', 'knowledge_base_id': '$KB_ID'}, ensure_ascii=True))
+")
 
----
-*由 pin2ima 于 $(date +%Y-%m-%d) 自动收录*"
-
-# 清洗 UTF-8（同视频流程）
-CLEAN_CONTENT=$(printf '%s' "$NOTE_CONTENT" | python3 -c "import sys; sys.stdout.write(sys.stdin.buffer.read().decode('utf-8','ignore'))")
-CLEAN_TITLE=$(printf '%s' "$REAL_TITLE" | python3 -c "import sys; sys.stdout.write(sys.stdin.buffer.read().decode('utf-8','ignore'))")
-
-# Step C: 创建笔记
-NOTE_RESP=$(import_doc "{
-  \"content_format\": 1,
-  \"content\": \"$CLEAN_CONTENT\",
-  \"folder_name\": \"选题笔记\"
-}")
-
-# Step D: 挂到知识库
-ADD_RESP=$(add_knowledge_note "{
-  \"media_type\": 11,
-  \"note_info\": {\"content_id\": \"$NOTE_ID\"},
-  \"title\": \"$CLEAN_TITLE\",
-  \"knowledge_base_id\": \"$KB_ID\"
-}")
+ADD_RESP=$(curl -s "https://ima.qq.com/openapi/wiki/v1/add_knowledge" \
+  -H "ima-openapi-clientid: $CLIENT_ID" \
+  -H "ima-openapi-apikey: $API_KEY" \
+  -H "ima-openapi-ctx: skill_version=1.0.0" \
+  -H "Content-Type: application/json" \
+  -d "$ADD_JSON")
 ```
 
 ### 输出示例（小红书）
@@ -418,47 +413,33 @@ done
 
 ### 前置：笔记 API 用法
 
-视频摘要通过 IMA 笔记实现持久化，涉及两个 API：
-
 ```bash
-# API 1: import_doc — 创建笔记
-# POST https://ima.qq.com/openapi/note/v1/import_doc
+# API 1: import_doc — 创建笔记 (POST https://ima.qq.com/openapi/note/v1/import_doc)
 # Body: {"content_format": 1, "content": "markdown正文", "folder_name": "选题笔记"}
+# 返回: {"code": 0, "data": {"note_id": "xxx"}}
 
-import_doc() {
-  CLIENT_ID=$(cat ~/.config/ima/client_id)
-  API_KEY=$(cat ~/.config/ima/api_key)
-  curl -s "https://ima.qq.com/openapi/note/v1/import_doc" \
-    -H "ima-openapi-clientid: $CLIENT_ID" \
-    -H "ima-openapi-apikey: $API_KEY" \
-    -H "ima-openapi-ctx: skill_version=1.0.0" \
-    -H "Content-Type: application/json" \
-    -d "$1"
-}
-
-# API 2: add_knowledge — 把笔记挂到知识库（media_type=11 表示笔记类型）
-# POST https://ima.qq.com/openapi/wiki/v1/add_knowledge
+# API 2: add_knowledge — 挂载笔记到知识库 (POST https://ima.qq.com/openapi/wiki/v1/add_knowledge)
 # Body: {"media_type": 11, "note_info": {"content_id": "<note_id>"}, "title": "标题", "knowledge_base_id": "<kb_id>"}
-
-add_knowledge_note() {
-  CLIENT_ID=$(cat ~/.config/ima/client_id)
-  API_KEY=$(cat ~/.config/ima/api_key)
-  curl -s "https://ima.qq.com/openapi/wiki/v1/add_knowledge" \
-    -H "ima-openapi-clientid: $CLIENT_ID" \
-    -H "ima-openapi-apikey: $API_KEY" \
-    -H "ima-openapi-ctx: skill_version=1.0.0" \
-    -H "Content-Type: application/json" \
-    -d "$1"
-}
 ```
 
-**笔记内容格式：** `content_format` 固定为 `1`（Markdown），内容建议包含来源链接、摘要、备注，方便以后回顾时直接查看。
+**笔记内容格式：** `content_format` 固定为 `1`（Markdown）。
 
-**⛔ 编码注意事项（笔记写入前必读）：**
+**⛔ 编码铁律：**
 
-笔记 API 的 `content` 和 `title` 字段**必须是合法 UTF-8**，否则会在 IMA 中显示为不可逆的乱码（如 `h͎̀͌` 或 ``）。
+所有通过 curl 传递中文的 API 调用，**必须使用 Python `json.dumps(body, ensure_ascii=True)` 构造 JSON body**。这会自动将中文转为 `\uXXXX` 转义序列，避免 Windows bash/curl 的 GBK 编码破坏。
 
-**问题来源：** 从网页抓取的标题、简介可能为 GBK / Latin-1 等编码，直接写入笔记就会乱码。
+```python
+# ✅ 正确
+body = {'content_format': 1, 'content': '中文字符', 'folder_name': '\u9009\u9898\u7b14\u8bb0'}
+json_str = json.dumps(body, ensure_ascii=True)
+# → {"content_format": 1, "content": "\u4e2d\u6587\u5b57\u7b26", "folder_name": "\u9009\u9898\u7b14\u8bb0"}
+```
+
+```bash
+# 配合 curl 使用
+NOTE_JSON=$(python3 -c "... json.dumps(body, ensure_ascii=True) ...")
+curl -s "https://ima.qq.com/path" -H "..." -d "$NOTE_JSON"
+```
 
 **解决方案：写入笔记前，用 Python 清洗所有字符串字段：**
 
@@ -466,6 +447,23 @@ add_knowledge_note() {
 # 清洗非法 UTF-8 字节
 content = raw_content.encode('utf-8', 'ignore').decode('utf-8')
 title = raw_title.encode('utf-8', 'ignore').decode('utf-8')
+```
+
+**⛔ JSON 构造规则（curl 传递中文时必须遵循）：**
+
+在 Windows 环境下，通过 `curl -d` 传递 JSON body 时，中文直接量会被 GBK 编码破坏。
+**必须使用 Python `json.dumps(body, ensure_ascii=True)` 构造 JSON**，
+将所有中文转为 `\uXXXX` 转义序列，服务端能正确解码。
+
+```python
+# ✅ 正确：ensure_ascii=True，中文不会因 bash/curl 产生编码问题
+import json
+body = {'content_format': 1, 'content': content, 'folder_name': '\u9009\u9898\u7b14\u8bb0'}
+print(json.dumps(body, ensure_ascii=True))
+
+# ❌ 错误：ensure_ascii=False，中文在 Windows 的 bash/curl 中会乱码
+body = {'content_format': 1, 'content': content, 'folder_name': '选题笔记'}
+print(json.dumps(body, ensure_ascii=False))
 ```
 
 或在 bash 中处理：
@@ -486,25 +484,33 @@ CLEAN_TITLE=$(printf '%s' "$RAW_TITLE" | python3 -c "import sys; sys.stdout.writ
 # Step A: 获取知识库 ID（同文章工作流 Step 2）
 # ... search_knowledge_base ...
 
-# Step B: 创建笔记（写入前清洗 UTF-8）
-# 先清洗 content 和 title 中的非法 UTF-8 字节
-CLEAN_CONTENT=$(printf '%s' "## $VIDEO_TITLE\n\n**来源：** $VIDEO_URL\n**平台：** $PLATFORM\n**发布时间：** $PUB_DATE\n\n### AI 摘要\n$SUMMARY\n\n---\n*由 pin2ima 于 $(date +%Y-%m-%d) 自动收录*" | python3 -c "import sys; sys.stdout.write(sys.stdin.buffer.read().decode('utf-8','ignore'))")
-CLEAN_TITLE=$(printf '%s' "$VIDEO_TITLE - 选题笔记" | python3 -c "import sys; sys.stdout.write(sys.stdin.buffer.read().decode('utf-8','ignore'))")
+# Step B: 用 Python 构造 JSON（ensure_ascii=True 防止 Window 下中文乱码）
+NOTE_JSON=$(python3 -c "
+import json
+content = f'## $VIDEO_TITLE\n\n**来源：** $VIDEO_URL\n**平台：** $PLATFORM\n**发布时间：** $PUB_DATE\n\n### AI 摘要\n$SUMMARY\n\n---\n*由 pin2ima 于 \$(date +%Y-%m-%d) 自动收录*'
+print(json.dumps({'content_format': 1, 'content': content, 'folder_name': '\u9009\u9898\u7b14\u8bb0'}, ensure_ascii=True))
+")
 
-NOTE_RESP=$(import_doc "{
-  \"content_format\": 1,
-  \"content\": \"$CLEAN_CONTENT\",
-  \"folder_name\": \"选题笔记\"
-}")
+NOTE_RESP=$(curl -s "https://ima.qq.com/openapi/note/v1/import_doc" \
+  -H "ima-openapi-clientid: $CLIENT_ID" \
+  -H "ima-openapi-apikey: $API_KEY" \
+  -H "ima-openapi-ctx: skill_version=1.0.0" \
+  -H "Content-Type: application/json" \
+  -d "$NOTE_JSON")
 # 解析 NOTE_RESP 获取 note_id
 
-# Step C: 把笔记挂到知识库（title 同样需要清洗）
-ADD_RESP=$(add_knowledge_note "{
-  \"media_type\": 11,
-  \"note_info\": {\"content_id\": \"$NOTE_ID\"},
-  \"title\": \"$CLEAN_TITLE\",
-  \"knowledge_base_id\": \"$KB_ID\"
-}")
+# Step C: 挂载到知识库（同样用 ensure_ascii=True）
+ADD_JSON=$(python3 -c "
+import json
+print(json.dumps({'media_type': 11, 'note_info': {'content_id': '$NOTE_ID'}, 'title': '\u5feb\u770b\u5b66\u957f - \u9009\u9898\u7b14\u8bb0', 'knowledge_base_id': '$KB_ID'}, ensure_ascii=True))
+")
+
+ADD_RESP=$(curl -s "https://ima.qq.com/openapi/wiki/v1/add_knowledge" \
+  -H "ima-openapi-clientid: $CLIENT_ID" \
+  -H "ima-openapi-apikey: $API_KEY" \
+  -H "ima-openapi-ctx: skill_version=1.0.0" \
+  -H "Content-Type: application/json" \
+  -d "$ADD_JSON")
 
 ### 层级一：有公开字幕（B站 / YouTube）
 

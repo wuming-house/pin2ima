@@ -84,6 +84,7 @@ Before proceeding, determine whether the URL points to an **article** (web page)
 | `douyin.com/video/` | 抖音 | video |
 | `ixigua.com` | 西瓜视频 | video |
 | `kuaishou.com` | 快手 | video |
+| `channels.weixin.qq.com` / `weixin.qq.com/sph` | 视频号 | video |
 | URL ends with `.mp4` / `.mov` / `.webm` etc. | Direct video file | video |
 
 - **article** → follow the standard Core Workflow below

@@ -498,7 +498,9 @@ index = json.load(open(f)) if os.path.exists(f) else {}
 **推荐标题生成规则：**
 - 每个高频话题生成 2-3 个标题
 - 每个标题下方用 `↩ 参考：` 列出引用文章（含原文链接或 IMA 内链）
-- **链接规则：** 如果该文章的 `media_id` 在 `url_index.json` 中有匹配，使用真实 URL；否则使用"🔗 在IMA中搜索"标记
+- **链接规则：**
+  - 有原文链接 → 用 `<a href="URL">` 可点击跳转
+  - 无原文链接 → 用 `<span onclick="navigator.clipboard.writeText('标题')">` 点击复制标题，方便去 IMA 粘贴搜索
 - 写作思路要具体落地：**开头怎么写 / 用什么结构 / 亮点在哪里**
 - 标题需包含**数字**或**对比**
 

@@ -193,7 +193,28 @@ RESPONSE=$(curl -s "https://ima.qq.com/openapi/wiki/v1/import_urls" \
   -d "{\"knowledge_base_id\":\"$KB_ID\",\"urls\":[\"$URL\"]}")
 ```
 
-### Step 4 — Present Result
+### Step 4 — Record URL to Index + Present Result
+
+**保存成功后，将 URL 写入本地索引文件，供选题速览引用：**
+
+```bash
+INDEX_FILE="$HOME/.config/ima/url_index.json"
+TITLE="<article-title-from-response-or-webfetch>"
+
+# 追加记录到 url_index.json（用 Python 处理 JSON 写入）
+python3 -c "
+import json, os
+index = {}
+if os.path.exists('$INDEX_FILE'):
+    with open('$INDEX_FILE') as f:
+        index = json.load(f)
+# 以 IMA 返回的 media_id 为 key，存储标题和 URL
+mid = '<media_id_from_response>'
+index[mid] = {'title': '$TITLE', 'url': '$URL'}
+with open('$INDEX_FILE', 'w') as f:
+    json.dump(index, f, ensure_ascii=False, indent=2)
+"
+```
 
 Parse `RESPONSE`:
 
@@ -378,11 +399,24 @@ LIST=$(curl -s "https://ima.qq.com/openapi/wiki/v1/get_knowledge_list" \
   -d "{\"knowledge_base_id\":\"$KB_ID\",\"cursor\":\"\",\"limit\":50,\"sort_type\":\"UPDATE_TS_DESC_SORT_TYPE\"}")
 ```
 
-#### Step B: 提取标题和标签
+#### Step B: 提取标题、标签和原文链接
 
 对每个条目：
 - `media_type=11`（笔记）→ 调 `get_doc_content` 读取正文，提取「标签」行和「AI 摘要」行
 - `media_type=2/6`（网页/公众号）→ 直接取 `title` 字段
+
+**原文链接获取：** 读取 `~/.config/ima/url_index.json`，用 `media_id` 匹配原文 URL。匹配到的条目使用真实链接，未匹配的注明"🔗 在IMA中打开"。
+
+```bash
+# 加载 URL 索引
+python3 -c "
+import json, os
+f = os.path.expanduser('~/.config/ima/url_index.json')
+index = json.load(open(f)) if os.path.exists(f) else {}
+# index 结构: { media_id: { title: '...', url: 'https://...' } }
+# 生成报告时用 media_id 匹配
+"
+```
 
 **提取工具：** 直接用 AI 能力分析标题/内容中的关键词，不需要外部 NLP 工具。
 
@@ -408,26 +442,65 @@ LIST=$(curl -s "https://ima.qq.com/openapi/wiki/v1/get_knowledge_list" \
    └─ {标题3}
 
 ✍️ 推荐写作标题
-1. {话题A}
-   · {推荐标题1}
-   · {推荐标题2}
-2. {话题B}
-   · {推荐标题1}
-   · {推荐标题2}
-3. {话题C}
-   · {推荐标题1}
-   · {推荐标题2}
+
+**1. {话题A}**
+    {推荐标题1}
+    ↩ 参考：{文章标题a}、{文章标题b}
+    💡 写作思路：{一句话写作方向}
+
+    {推荐标题2}
+    ↩ 参考：{文章标题c}
+    💡 写作思路：{一句话写作方向}
+
+    {推荐标题3}
+    ↩ 参考：{文章标题d}、{文章标题e}
+    💡 写作思路：{一句话写作方向}
+
+**2. {话题B}**
+    {推荐标题1}
+    ↩ 参考：{文章标题f}
+    💡 写作思路：{一句话写作方向}
+
+    {推荐标题2}
+    ↩ 参考：{文章标题g}、{文章标题h}
+    💡 写作思路：{一句话写作方向}
+
+**3. {话题C}**
+    {推荐标题1}
+    ↩ 参考：{文章标题i}、{文章标题j}
+
+    {推荐标题2}
+    ↩ 参考：{文章标题k}
 
 📌 值得关注的角度
 - {角度1}
 - {角度2}
 ```
 
+**⛔ 格式强制规则（必须遵守）：**
+1. 每个分类名（如 "**1. GitHub 开源项目**"）必须独占一行，后接换行
+2. 每个推荐标题必须独占一行，后接换行，不得与前一行拼接在同一行
+3. 相邻类别之间用**空行**分隔
+4. 正确示例：
+
+   ```
+   **1. GitHub 开源项目**
+
+   GitHub 上最被低估的 5 个开源神器，第 3 个星少但真好用
+
+   11.9万Star！一个人建了一支 AI Agent 军团，他怎么做到的？
+
+   **2. AI 工具**
+
+   腾讯版"贾维斯"来了，用过 3 天，我卸载了 5 个效率工具
+   ```
+
 **推荐标题生成规则：**
 - 每个高频话题生成 2-3 个标题
-- 标题需包含**数字**或**对比**（如"5 个/最/扎心/被低估/神级"）
-- 风格：公众号爆款标题风格（悬念/利益/情绪/好奇）
-- 禁止泛泛而谈（如"开源项目推荐"），必须具体到素材中的某个点
+- 每个标题下方用 `↩ 参考：` 列出引用文章（含原文链接或 IMA 内链）
+- **链接规则：** 如果该文章的 `media_id` 在 `url_index.json` 中有匹配，使用真实 URL；否则使用"🔗 在IMA中搜索"标记
+- 写作思路要具体落地：**开头怎么写 / 用什么结构 / 亮点在哪里**
+- 标题需包含**数字**或**对比**
 
 #### 触发方式
 
@@ -546,6 +619,17 @@ ADD_RESP=$(curl -s "https://ima.qq.com/openapi/wiki/v1/add_knowledge" \
   -H "ima-openapi-ctx: skill_version=1.0.0" \
   -H "Content-Type: application/json" \
   -d "$ADD_JSON")
+
+# Step D: 记录 URL 到本地索引（供选题速览引用）
+python3 -c "
+import json, os
+index_file = os.path.expanduser('~/.config/ima/url_index.json')
+index = {}
+if os.path.exists(index_file):
+    with open(index_file) as f: index = json.load(f)
+index['$NOTE_ID'] = {'title': '$VIDEO_TITLE', 'url': '$VIDEO_URL'}
+with open(index_file, 'w') as f: json.dump(index, f, ensure_ascii=False, indent=2)
+"
 
 ### 层级一：有公开字幕（B站 / YouTube）
 

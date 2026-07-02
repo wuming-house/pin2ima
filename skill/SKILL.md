@@ -1,6 +1,6 @@
 ---
 name: pin2ima
-description: Pin any article/video link to IMA knowledge base. Trigger when the user says "pin2ima" or sends a URL with "pin/📌/Pin2IMA/专注收藏". Designed for 自媒体选题素材收集. NOT the ima-mcp connector — uses curl + IMA OpenAPI directly.
+description: Pin any article/video link to IMA knowledge base. Trigger when the user says "pin2ima" or sends a URL with "pin/📌/Pin2IMA/专注收藏". Also generates 选题速览 (topic brief) reports from knowledge base — trigger with "选题报告/选题速览/本周选题". Designed for 自媒体选题素材收集. NOT the ima-mcp connector — uses curl + IMA OpenAPI directly.
 agent_created: true
 ---
 

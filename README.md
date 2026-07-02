@@ -160,7 +160,7 @@ MIT
 
 ---
 
-**Created by [吾鳴](https://mp.weixin.qq.com/s/Gslh5H5D9hqHnHxk8GzLFQ)**
+**Created by 吾鳴**
 - 微信公众号：**蕪鳴**
 - 微信：**wu_ming_2025**
 - Built for 自媒体创作者 · Made with ❤️

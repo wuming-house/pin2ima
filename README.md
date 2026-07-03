@@ -41,6 +41,8 @@ echo "你的APIKey" > ~/.config/ima/api_key
 
 ### 2. 安装 Skill
 
+#### 人工安装
+
 ```bash
 # 克隆项目
 git clone https://github.com/wuming-house/pin2ima.git
@@ -48,6 +50,14 @@ git clone https://github.com/wuming-house/pin2ima.git
 # 如果你用的是 WorkBuddy / Claude Code 等 AI Agent
 cp -r pin2ima/skill ~/.workbuddy/skills/pin2ima
 ```
+
+#### 智能体安装
+
+直接让你的 AI Agent 帮你装：
+
+> 帮我安装一下这个skill: https://github.com/wuming-house/pin2ima
+
+Agent 会自动完成下载、安装、配置。
 
 ### 3. 开始使用
 

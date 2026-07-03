@@ -41,25 +41,52 @@ echo "你的APIKey" > ~/.config/ima/api_key
 
 ### 2. 安装 Skill
 
+#### 方式一：WorkBuddy（推荐）
+
 ```bash
-# 克隆项目
+# 1. 克隆项目
 git clone https://github.com/wuming-house/pin2ima.git
 
-# 如果你用的是 WorkBuddy / Claude Code 等 AI Agent
-cp -r pin2ima/skill ~/.workbuddy/skills/pin2ima
+# 2. 安装 Skill 到 WorkBuddy
+cp -r pin2ima/skill/SKILL.md ~/.workbuddy/skills/pin2ima/SKILL.md
+cp -r pin2ima/skill/meta.json ~/.workbuddy/skills/pin2ima/meta.json
 ```
+
+> ⚠️ 注意：SKILL.md 和 meta.json 必须直接放在 `~/.workbuddy/skills/pin2ima/` 根目录下，不要嵌套子文件夹。
+
+**触发方式：** 对 WorkBuddy 说以下任意一句
+- `pin2ima 收藏 https://xxx`
+- `https://xxx 📌 收藏`
+- `选题速览`（生成选题报告）
+- `本周选题`
+
+#### 方式二：其他 AI Agent（Claude Code / Cursor / 通用）
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/wuming-house/pin2ima.git
+
+# 2. 将 SKILL.md 作为系统提示词或自定义指令加载
+# Claude Code: 添加到 CLAUDE.md 或通过 /skill 命令导入
+# Cursor: 添加到 .cursorrules 或作为自定义 Agent 规则
+# 通用方案：将 pin2ima/skill/SKILL.md 的内容用作 Agent 的系统提示词
+```
+
+> 💡 pin2ima 是纯 bash + curl 方案，只要你的 AI Agent 能执行终端命令，就能直接使用。无需额外安装 MCP 或插件。
 
 ### 3. 开始使用
 
 对 AI Agent 说：
 
-> "帮我把 https://example.com/article 保存到知识库"
+> `pin2ima 收藏 https://mp.weixin.qq.com/s/xxx`
 
-或：
+或直接丢链接：
 
-> "收藏这几个链接到知识库"
-> https://link1.com
-> https://link2.com
+> `https://weixin.qq.com/sph/xxx pin2ima 收藏`
+
+生成选题报告：
+
+> `选题速览`
 
 Agent 会自动处理凭证验证、知识库识别、URL 导入，并返回保存结果。
 
